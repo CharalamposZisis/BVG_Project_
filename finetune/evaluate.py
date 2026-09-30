@@ -42,8 +42,13 @@ ZERO_SHOT_PROMPT = (
     "This is a scanned German construction plan (Berlin U-Bahn / BVG), dating "
     "from 1900-2013. Find the title block stamp. Transcribe the title EXACTLY "
     "as written, in German — do not translate it. Transcribe the date EXACTLY "
-    "as written. If no date is visible anywhere on the sheet, return an empty "
-    'string for date — do not guess one. Respond with JSON: {"title": ..., "date": ...}.'
+    "as written. Only report a date if you can clearly see it printed or "
+    "handwritten as a date in the title block itself — never infer one from a "
+    "scale, a drawing number, a reference code, or any other unrelated number "
+    "on the sheet. If you are unsure whether a number is actually a date, or "
+    "you cannot find a date at all, return an empty string for date — an "
+    'empty answer is correct far more often than a guess. Respond with JSON: '
+    '{"title": ..., "date": ...}.'
 )
 
 
@@ -229,6 +234,8 @@ def main():
     parser.add_argument("--skip-zero-shot", action="store_true")
     parser.add_argument("--skip-finetuned", action="store_true")
     parser.add_argument("--csv-dir", default=str(DATA_DIR.parent), help="Where to write eval_*.csv")
+    parser.add_argument("--filter", help="Only test images whose filename contains this substring "
+                                          "(e.g. --filter S_112_002 to re-test just one plan)")
     args = parser.parse_args()
 
     test_path = Path(args.test_jsonl)
@@ -237,7 +244,13 @@ def main():
         return
     Path(args.csv_dir).mkdir(parents=True, exist_ok=True)
     examples = load_test_set(test_path)
-    print(f"Loaded {len(examples)} test example(s) from {test_path}")
+    if args.filter:
+        examples = [ex for ex in examples if args.filter in ex["image_path"].name]
+    print(f"Loaded {len(examples)} test example(s) from {test_path}"
+          + (f" (filtered by {args.filter!r})" if args.filter else ""))
+    if not examples:
+        print("No examples matched the filter.")
+        return
 
     if not args.skip_zero_shot:
         score(examples, run_zero_shot(examples), f"Zero-shot ({HTW_MODEL} via HTW API)",

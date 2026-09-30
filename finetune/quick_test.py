@@ -20,8 +20,13 @@ PROMPT = (
     "This is a scanned German construction plan (Berlin U-Bahn / BVG), dating "
     "from 1900-2013. Find the title block stamp. Transcribe the title EXACTLY "
     "as written, in German — do not translate it. Transcribe the date EXACTLY "
-    "as written. If no date is visible anywhere on the sheet, return an empty "
-    'string for date — do not guess one. Respond with JSON: {"title": ..., "date": ...}.'
+    "as written. Only report a date if you can clearly see it printed or "
+    "handwritten as a date in the title block itself — never infer one from a "
+    "scale, a drawing number, a reference code, or any other unrelated number "
+    "on the sheet. If you are unsure whether a number is actually a date, or "
+    "you cannot find a date at all, return an empty string for date — an "
+    'empty answer is correct far more often than a guess. Respond with JSON: '
+    '{"title": ..., "date": ...}.'
 )
 
 
