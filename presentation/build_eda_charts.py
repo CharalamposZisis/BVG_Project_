@@ -18,6 +18,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GT_CSV = PROJECT_ROOT / "dataset_prep" / "ground_truth.csv"
 OUT_DIR = Path(__file__).resolve().parent / "charts"
 
+TITLE_PASS_THRESHOLD = 0.6  # keep in sync with finetune/streamlit_app.py
+
 # Reference palette (dataviz skill, light mode)
 INK = "#0b0b0b"
 INK_SECONDARY = "#52514e"
@@ -112,6 +114,69 @@ def chart_split_examples(train_n, val_n, test_n, train_base, val_base, test_base
     plt.close(fig)
 
 
+def chart_date_confusion_matrix(eval_df, label: str, out_name: str):
+    counts = eval_df["date_presence_class"].value_counts()
+    order = ["TP", "TN", "FN", "FP"]
+    values = [int(counts.get(k, 0)) for k in order]
+    colors = {"TP": "#0ca30c", "TN": "#1baf7a", "FN": "#fab219", "FP": "#d03b3b"}
+    names = {"TP": "TP\n(date found)", "TN": "TN\n(correctly none)",
+             "FN": "FN\n(missed date)", "FP": "FP\n(hallucinated)"}
+
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    bars = ax.bar([names[k] for k in order], values, color=[colors[k] for k in order], width=0.55, zorder=3)
+    style_axes(ax)
+    ax.set_title(f"Date-presence confusion matrix — {label}", fontsize=15, color=INK, pad=14,
+                 loc="left", fontweight="bold")
+    ax.set_ylim(0, max(values + [1]) * 1.25)
+    for b, v in zip(bars, values):
+        ax.text(b.get_x() + b.get_width() / 2, v + max(values + [1]) * 0.03, str(v),
+                 ha="center", va="bottom", fontsize=12, color=INK, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / out_name, dpi=200)
+    plt.close(fig)
+
+
+def chart_eval_pass_fail(eval_df, label: str, out_name: str):
+    n = len(eval_df)
+    title_ok = (eval_df["title_similarity"].astype(float) >= TITLE_PASS_THRESHOLD).sum()
+    date_ok = (
+        (eval_df["date_presence_class"] == "TN")
+        | (eval_df["date_result"].isin(["exact", "same_date_different_format"]))
+    ).sum()
+    both_ok = (
+        (eval_df["title_similarity"].astype(float) >= TITLE_PASS_THRESHOLD)
+        & ((eval_df["date_presence_class"] == "TN") | (eval_df["date_result"].isin(["exact", "same_date_different_format"])))
+    ).sum()
+
+    labels = ["Title\nrecognized", "Date\ncorrect", "Both\ncorrect"]
+    values = [title_ok, date_ok, both_ok]
+
+    fig, ax = plt.subplots(figsize=(6.5, 4.2))
+    bars = ax.bar(labels, values, color=CATEGORICAL, width=0.5, zorder=3)
+    style_axes(ax)
+    ax.set_title(f"Zero-shot prototype accuracy — {label} (n={n})", fontsize=15, color=INK, pad=14,
+                 loc="left", fontweight="bold")
+    ax.set_ylim(0, n * 1.25)
+    for b, v in zip(bars, values):
+        ax.text(b.get_x() + b.get_width() / 2, v + n * 0.03, f"{v}/{n}",
+                 ha="center", va="bottom", fontsize=12, color=INK, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / out_name, dpi=200)
+    plt.close(fig)
+
+
+def build_eval_charts():
+    """Optional: only runs if finetune/eval_zero_shot.csv exists (produced by evaluate.py)."""
+    eval_csv = PROJECT_ROOT / "finetune" / "eval_zero_shot.csv"
+    if not eval_csv.exists():
+        print(f"({eval_csv} not found yet -- run evaluate.py first to get evaluation charts)")
+        return
+    eval_df = pd.read_csv(eval_csv, dtype=str, keep_default_na=False)
+    chart_date_confusion_matrix(eval_df, "Zero-shot", "eval_confusion_matrix.png")
+    chart_eval_pass_fail(eval_df, "Zero-shot", "eval_pass_fail.png")
+    print("Wrote evaluation charts (confusion matrix + pass/fail)")
+
+
 def main():
     OUT_DIR.mkdir(exist_ok=True)
     df = pd.read_csv(GT_CSV, dtype=str, keep_default_na=False)
@@ -141,6 +206,8 @@ def main():
 
     chart_split_examples(counts["train"], counts["val"], counts["test"],
                           bases["train"], bases["val"], bases["test"])
+
+    build_eval_charts()
 
     print(f"Wrote charts to {OUT_DIR}")
 
