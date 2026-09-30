@@ -5,6 +5,15 @@ Full pipeline: `dataset_prep/label_ground_truth.py` (labels) →
 folder, builds the training set) → LoRA training on the HTW GPU cluster →
 `evaluate.py` (zero-shot vs fine-tuned).
 
+## Setup (once, from the project root)
+
+```
+pip install -r requirements.txt
+```
+
+Covers everything below except actual training (step 2), which needs a real
+GPU — see `requirements-training.txt` and step 2.
+
 ## 0. Label the plans (local machine, no GPU needed)
 
 ```
@@ -14,8 +23,7 @@ python label_ground_truth.py
 
 Draw a box around the title block, then close the plot window and answer the
 title/date/status prompts in the terminal. Re-run any time — it skips files
-already in `ground_truth.csv`. Labeling a `.pdf` plan needs `pip install
-pymupdf` first.
+already in `ground_truth.csv`.
 
 Check progress and data quality with:
 
@@ -42,11 +50,16 @@ folder, including `data/`, to the HTW cluster.
 ```
 python -m venv ~/venvs/llamafactory
 source ~/venvs/llamafactory/bin/activate
-pip install torch transformers accelerate peft "llamafactory[torch,metrics]" qwen-vl-utils
+pip install -r requirements-training.txt
 
 cd finetune
 llamafactory-cli train qwen2vl_lora.yaml
 ```
+
+Check GPU/CUDA is actually available *before* installing anything:
+`python -c "import torch; print(torch.cuda.is_available())"` — if that's
+`False` on Windows, you likely got the CPU-only torch build; reinstall from
+https://pytorch.org/get-started/locally/ with the right CUDA version.
 
 This downloads `Qwen/Qwen2-VL-7B-Instruct` from the Hugging Face Hub on first
 run. The adapter is written to `finetune/output/qwen2vl_lora`. Watch the
@@ -80,15 +93,27 @@ Run this on whichever machine holds the fine-tuned checkpoint (the GPU box) —
 it loads the model once and serves requests to anyone on the network:
 
 ```
-pip install streamlit
 streamlit run finetune/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
 Then open `http://<that machine's IP>:8501` from any other laptop on the same
-network. Upload a plan image, tick "Zero-shot" and/or "Fine-tuned" in the
-sidebar, hit Run. The zero-shot panel only needs `openai` + network access to
-the HTW API; the fine-tuned panel needs the same `torch`/`transformers`/`peft`/
-`qwen-vl-utils` stack as training, plus the adapter dir from step 2.
+network. Two tabs: "Try an image" (upload one, tick "Zero-shot" and/or
+"Fine-tuned" in the sidebar, hit Run) and "Test set results" (a gallery of the
+whole test split with pass/fail badges, once `eval_zero_shot.csv` exists —
+see step 3). The zero-shot panel only needs `openai` + network access to the
+HTW API; the fine-tuned panel needs `requirements-training.txt` plus the
+adapter dir from step 2.
+
+## 5. Failure analysis
+
+```
+python analyze_failures.py
+```
+
+Cross-references which test-set images the model got wrong against the
+confidence notes recorded during labeling (`dataset_prep/ground_truth.csv`) —
+answers "does the model mainly fail on scans that were already hard to read?"
+with actual numbers, not just impressions.
 
 ## Notes / known constraints
 

@@ -1,0 +1,16 @@
+# Core requirements: labeling, EDA, dataset prep, zero-shot prototype, demo UI.
+# No GPU needed for any of this.
+#
+#   pip install -r requirements.txt
+#
+# For the optional LoRA fine-tuning step (needs a real GPU), see requirements-training.txt.
+
+numpy
+pandas
+pillow
+matplotlib
+tifffile
+pymupdf          # only needed to label/process .pdf plans
+openai            # zero-shot calls to the HTW API (evaluate.py, quick_test.py, streamlit_app.py)
+streamlit         # demo UI (finetune/streamlit_app.py)
+python-pptx       # presentation/build_slides.py
