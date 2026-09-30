@@ -12,6 +12,7 @@ numpy
 pandas
 pillow
 matplotlib
+seaborn
 tifffile
 pymupdf           # only needed to label/process .pdf plans
 openai            # zero-shot calls to the HTW API (evaluate.py, quick_test.py, streamlit_app.py)
