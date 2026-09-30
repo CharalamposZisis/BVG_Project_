@@ -59,6 +59,9 @@ def parse_date_raw(date_raw: str):
     s = date_raw.strip()
     if not s:
         return ""
+    # Normalize "14. 6. 79" / "14 . 6 . 79" to "14.6.79" before matching --
+    # the patterns below don't otherwise tolerate stray whitespace.
+    s = re.sub(r"\s*([.\-/])\s*", r"\1", s)
 
     m = re.match(r"^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$", s)
     if m:
