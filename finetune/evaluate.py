@@ -60,7 +60,9 @@ def load_test_set(path: Path) -> list:
     return examples
 
 
-def parse_json_answer(text: str) -> dict:
+def parse_json_answer(text) -> dict:
+    if not text:
+        return {"title": "", "date": ""}
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -101,25 +103,34 @@ def date_match(pred: str, true: str) -> str:
 def run_zero_shot(examples: list) -> list:
     from openai import OpenAI
 
-    client = OpenAI(api_key=HTW_API_KEY, base_url=HTW_BASE_URL)
+    client = OpenAI(api_key=HTW_API_KEY, base_url=HTW_BASE_URL, timeout=120.0)
     predictions = []
-    for ex in examples:
-        mime_type, _ = mimetypes.guess_type(str(ex["image_path"]))
-        mime_type = mime_type or "image/png"
-        with open(ex["image_path"], "rb") as f:
-            image_b64 = base64.b64encode(f.read()).decode("utf-8")
-        response = client.chat.completions.create(
-            model=HTW_MODEL,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": ZERO_SHOT_PROMPT},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_b64}"}},
-                ],
-            }],
-            temperature=0.0,
-        )
-        predictions.append(parse_json_answer(response.choices[0].message.content))
+    n = len(examples)
+    for i, ex in enumerate(examples, 1):
+        name = ex["image_path"].name
+        print(f"  [{i}/{n}] {name} ...", end=" ", flush=True)
+        try:
+            mime_type, _ = mimetypes.guess_type(str(ex["image_path"]))
+            mime_type = mime_type or "image/png"
+            with open(ex["image_path"], "rb") as f:
+                image_b64 = base64.b64encode(f.read()).decode("utf-8")
+            response = client.chat.completions.create(
+                model=HTW_MODEL,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": ZERO_SHOT_PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_b64}"}},
+                    ],
+                }],
+                temperature=0.0,
+            )
+            pred = parse_json_answer(response.choices[0].message.content)
+            print("ok" if (pred.get("title") or pred.get("date")) else "empty response")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAILED ({exc})")
+            pred = {"title": "", "date": ""}
+        predictions.append(pred)
     return predictions
 
 
