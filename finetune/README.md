@@ -11,8 +11,9 @@ folder, builds the training set) → LoRA training on the HTW GPU cluster →
 pip install -r requirements.txt
 ```
 
-Covers everything below except actual training (step 2), which needs a real
-GPU — see `requirements-training.txt` and step 2.
+One file, everything included. The last block in it (`torch`, `transformers`,
+`peft`, `llamafactory`, `qwen-vl-utils`) is only needed for actual training
+(step 2) and needs a real GPU — see that step before installing those.
 
 ## 0. Label the plans (local machine, no GPU needed)
 
@@ -50,7 +51,7 @@ folder, including `data/`, to the HTW cluster.
 ```
 python -m venv ~/venvs/llamafactory
 source ~/venvs/llamafactory/bin/activate
-pip install -r requirements-training.txt
+pip install -r requirements.txt
 
 cd finetune
 llamafactory-cli train qwen2vl_lora.yaml
@@ -101,8 +102,8 @@ network. Two tabs: "Try an image" (upload one, tick "Zero-shot" and/or
 "Fine-tuned" in the sidebar, hit Run) and "Test set results" (a gallery of the
 whole test split with pass/fail badges, once `eval_zero_shot.csv` exists —
 see step 3). The zero-shot panel only needs `openai` + network access to the
-HTW API; the fine-tuned panel needs `requirements-training.txt` plus the
-adapter dir from step 2.
+HTW API; the fine-tuned panel needs the training block of `requirements.txt`
+plus the adapter dir from step 2.
 
 ## 5. Failure analysis
 

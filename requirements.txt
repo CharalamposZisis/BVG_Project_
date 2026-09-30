@@ -1,16 +1,31 @@
-# Core requirements: labeling, EDA, dataset prep, zero-shot prototype, demo UI.
-# No GPU needed for any of this.
+# All requirements for this project.
 #
 #   pip install -r requirements.txt
 #
-# For the optional LoRA fine-tuning step (needs a real GPU), see requirements-training.txt.
+# The last block (torch/transformers/...) is only needed for the optional LoRA
+# fine-tuning step and is heavy (needs a real NVIDIA GPU with CUDA). If you're
+# only doing labeling / EDA / the zero-shot prototype / the demo UI, comment
+# that block out or delete it before installing -- everything above it is all
+# you need.
 
 numpy
 pandas
 pillow
 matplotlib
 tifffile
-pymupdf          # only needed to label/process .pdf plans
+pymupdf           # only needed to label/process .pdf plans
 openai            # zero-shot calls to the HTW API (evaluate.py, quick_test.py, streamlit_app.py)
 streamlit         # demo UI (finetune/streamlit_app.py)
 python-pptx       # presentation/build_slides.py
+
+# --- LoRA fine-tuning only (needs an NVIDIA GPU + CUDA) ---
+# Check first: python -c "import torch; print(torch.cuda.is_available())"
+# On Windows, a plain "pip install torch" often installs a CPU-only build --
+# install from https://pytorch.org/get-started/locally/ for your CUDA version
+# instead if you actually have a GPU.
+torch
+transformers
+accelerate
+peft
+llamafactory[torch,metrics]
+qwen-vl-utils
