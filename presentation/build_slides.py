@@ -300,6 +300,16 @@ def build():
         ],
     )
 
+    if (CHARTS_DIR / "eval_confusion_matrix.png").exists():
+        image_slide(prs, "Evaluation — Date Presence (TP/TN/FN/FP)",
+                    CHARTS_DIR / "eval_confusion_matrix.png",
+                    "TP/TN = correct behavior; FN = missed a real date; FP = hallucinated one that isn't there")
+
+    if (CHARTS_DIR / "eval_pass_fail.png").exists():
+        image_slide(prs, "Evaluation — Zero-Shot Accuracy",
+                    CHARTS_DIR / "eval_pass_fail.png",
+                    "Title similarity threshold 0.6; date counts exact + reformatted matches and correct abstentions")
+
     content_slide(
         prs, "Status — What's Done",
         [
