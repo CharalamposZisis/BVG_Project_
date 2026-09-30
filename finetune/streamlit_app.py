@@ -18,12 +18,15 @@ Run:
 """
 
 import base64
+import csv
 import mimetypes
 import sys
 from pathlib import Path
 
 import streamlit as st
 from PIL import Image
+
+TITLE_PASS_THRESHOLD = 0.6
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "dataset_prep"))
@@ -106,42 +109,107 @@ def run_zero_shot(image_path: str) -> dict:
     return parse_json_answer(response.choices[0].message.content)
 
 
-uploaded = st.file_uploader("Plan image", type=["png", "jpg", "jpeg", "tif", "tiff"])
+def load_eval_rows(csv_path: Path) -> list:
+    if not csv_path.exists():
+        return []
+    with csv_path.open(encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
-if uploaded:
-    image = Image.open(uploaded).convert("RGB")
-    col_img, col_results = st.columns([1, 1])
 
-    with col_img:
-        st.image(image, caption=uploaded.name, use_container_width=True)
+def row_verdict(row: dict) -> dict:
+    title_ok = float(row["title_similarity"]) >= TITLE_PASS_THRESHOLD
+    date_ok = row["date_presence_class"] == "TN" or row["date_result"] in ("exact", "same_date_different_format")
+    return {"title_ok": title_ok, "date_ok": date_ok, "overall_ok": title_ok and date_ok}
 
-    tmp_path = PROJECT_ROOT / "finetune" / "_streamlit_tmp.png"
-    image.save(tmp_path)
 
-    if st.button("Run", type="primary"):
-        with col_results:
-            if use_zero_shot:
-                st.subheader("Zero-shot (HTW API)")
-                try:
-                    with st.spinner("Calling HTW API..."):
-                        result = run_zero_shot(str(tmp_path))
-                    st.json(result)
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Zero-shot call failed: {exc}")
+tab_try, tab_results = st.tabs(["🔍 Try an image", "📊 Test set results"])
 
-            if use_finetuned:
-                st.subheader("Fine-tuned (LoRA)")
-                if not Path(adapter_dir).exists():
-                    st.warning(f"Adapter dir not found: {adapter_dir}")
-                else:
+with tab_try:
+    uploaded = st.file_uploader("Plan image", type=["png", "jpg", "jpeg", "tif", "tiff"])
+
+    if uploaded:
+        image = Image.open(uploaded).convert("RGB")
+        col_img, col_results = st.columns([1, 1])
+
+        with col_img:
+            st.image(image, caption=uploaded.name, use_container_width=True)
+
+        tmp_path = PROJECT_ROOT / "finetune" / "_streamlit_tmp.png"
+        image.save(tmp_path)
+
+        if st.button("Run", type="primary"):
+            with col_results:
+                if use_zero_shot:
+                    st.subheader("Zero-shot (HTW API)")
                     try:
-                        with st.spinner("Running fine-tuned model..."):
-                            result = run_finetuned(str(tmp_path), base_model, adapter_dir)
+                        with st.spinner("Calling HTW API..."):
+                            result = run_zero_shot(str(tmp_path))
                         st.json(result)
                     except Exception as exc:  # noqa: BLE001
-                        st.error(f"Fine-tuned inference failed: {exc}")
+                        st.error(f"Zero-shot call failed: {exc}")
 
-            if not use_zero_shot and not use_finetuned:
-                st.info("Tick at least one model in the sidebar.")
-else:
-    st.info("Upload an image to get started.")
+                if use_finetuned:
+                    st.subheader("Fine-tuned (LoRA)")
+                    if not Path(adapter_dir).exists():
+                        st.warning(f"Adapter dir not found: {adapter_dir}")
+                    else:
+                        try:
+                            with st.spinner("Running fine-tuned model..."):
+                                result = run_finetuned(str(tmp_path), base_model, adapter_dir)
+                            st.json(result)
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"Fine-tuned inference failed: {exc}")
+
+                if not use_zero_shot and not use_finetuned:
+                    st.info("Tick at least one model in the sidebar.")
+    else:
+        st.info("Upload an image to get started.")
+
+with tab_results:
+    csv_path = PROJECT_ROOT / "finetune" / "eval_zero_shot.csv"
+    rows = load_eval_rows(csv_path)
+
+    if not rows:
+        st.info(
+            "No results yet. Run this first, then reload this page:\n\n"
+            "```\ncd finetune\npython evaluate.py --skip-finetuned\n```"
+        )
+    else:
+        verdicts = [row_verdict(r) for r in rows]
+        n = len(rows)
+        n_title_ok = sum(v["title_ok"] for v in verdicts)
+        n_date_ok = sum(v["date_ok"] for v in verdicts)
+        n_both_ok = sum(v["overall_ok"] for v in verdicts)
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Title recognized", f"{n_title_ok}/{n}")
+        c2.metric("Date correct", f"{n_date_ok}/{n}")
+        c3.metric("Both correct", f"{n_both_ok}/{n}")
+
+        show_only_failures = st.checkbox("Show only failures")
+
+        images_dir = PROJECT_ROOT / "finetune" / "data" / "images"
+        cols = st.columns(4)
+        i = 0
+        for row, verdict in zip(rows, verdicts):
+            if show_only_failures and verdict["overall_ok"]:
+                continue
+
+            col = cols[i % 4]
+            i += 1
+            with col:
+                img_path = images_dir / row["filename"]
+                if img_path.exists():
+                    st.image(str(img_path), use_container_width=True)
+                badge = "✅" if verdict["overall_ok"] else "❌"
+                st.markdown(f"**{badge} {row['filename']}**")
+                title_mark = "✅" if verdict["title_ok"] else "❌"
+                date_mark = "✅" if verdict["date_ok"] else "❌"
+                st.caption(f"{title_mark} title (sim={float(row['title_similarity']):.2f})")
+                st.caption(f"true:  {row['true_title'][:40]}")
+                st.caption(f"pred:  {row['pred_title'][:40]}")
+                st.caption(f"{date_mark} date: true={row['true_date']!r} pred={row['pred_date']!r}")
+                st.divider()
+
+        if i == 0:
+            st.success("No failures — everything in the test set passed both checks.")
