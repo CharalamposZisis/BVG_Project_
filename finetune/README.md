@@ -5,6 +5,11 @@ Full pipeline: `dataset_prep/label_ground_truth.py` (labels) →
 folder, builds the training set) → LoRA training on the HTW GPU cluster →
 `evaluate.py` (zero-shot vs fine-tuned).
 
+None of the underlying data (scans, `ground_truth.csv`, prepared images) is in
+this repository — see "Data placement" in the root `README.md` for exactly
+where each of those goes if you already have them, rather than generating
+them yourself with step 0/1 below.
+
 ## Setup (once, from the project root)
 
 ```
