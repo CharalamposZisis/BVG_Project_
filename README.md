@@ -7,6 +7,24 @@ BVG (Berliner Verkehrsbetriebe) at HTW Berlin.
 The underlying scan collection is confidential per the course terms and is not
 included in this repository. This repository contains only the pipeline code.
 
+## Data placement
+
+Nothing under this heading is included in the repository; it must be added
+locally before running anything, in exactly these locations (relative to the
+project root):
+
+| What | Where it goes | Needed for |
+|---|---|---|
+| Raw plan scans (`.tif`/`.tiff`/`.pdf`) | `plans/` | Labeling (`dataset_prep/label_ground_truth.py`) |
+| `ground_truth.csv` (if supplied directly, rather than produced by labeling) | `dataset_prep/ground_truth.csv` | Everything in `finetune/` |
+| Prepared train/val/test images (if supplied directly, rather than produced by `prepare_dataset.py`) | `finetune/data/images/` | `evaluate.py`, `streamlit_app.py`, `analyze_failures.py` |
+
+If you have the raw scans, run `dataset_prep/label_ground_truth.py` and
+`finetune/prepare_dataset.py` yourself to generate everything else (see
+Usage below). If you were instead handed an already-prepared
+`ground_truth.csv` and/or `finetune/data/` folder, just place them at the
+paths above directly — no need to regenerate them.
+
 ## Approach
 
 The prototype extracts title and date by prompting a multimodal LLM (the HTW
