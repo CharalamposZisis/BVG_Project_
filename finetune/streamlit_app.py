@@ -33,6 +33,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "dataset_prep"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from evaluate import parse_json_answer, HTW_API_KEY, HTW_BASE_URL, HTW_MODEL, ZERO_SHOT_PROMPT  # noqa: E402
+from analyze_failures import base_filename, match_ground_truth_filename, is_low_confidence  # noqa: E402
 
 PROMPT = ZERO_SHOT_PROMPT
 
@@ -122,6 +123,28 @@ def row_verdict(row: dict) -> dict:
     return {"title_ok": title_ok, "date_ok": date_ok, "overall_ok": title_ok and date_ok}
 
 
+@st.cache_data
+def load_ground_truth():
+    gt_path = PROJECT_ROOT / "dataset_prep" / "ground_truth.csv"
+    if not gt_path.exists():
+        return None
+    import pandas as pd
+    return pd.read_csv(gt_path, dtype=str, keep_default_na=False)
+
+
+def get_image_quality(filename: str, gt_df) -> str:
+    if gt_df is None:
+        return "Unknown"
+    base = base_filename(filename)
+    gt_name = match_ground_truth_filename(base, gt_df["filename"].tolist())
+    if not gt_name:
+        return "Unknown"
+    row = gt_df[gt_df["filename"] == gt_name].iloc[0]
+    if row["status"] != "ok" or is_low_confidence(row["notes"]):
+        return "Bad"
+    return "Ok"
+
+
 tab_try, tab_results = st.tabs(["🔍 Try an image", "📊 Test set results"])
 
 with tab_try:
@@ -188,6 +211,7 @@ with tab_results:
 
         show_only_failures = st.checkbox("Show only failures")
 
+        gt_df = load_ground_truth()
         images_dir = PROJECT_ROOT / "finetune" / "data" / "images"
         cols = st.columns(4)
         i = 0
@@ -201,14 +225,22 @@ with tab_results:
                 img_path = images_dir / row["filename"]
                 if img_path.exists():
                     st.image(str(img_path), use_container_width=True)
+
                 badge = "✅" if verdict["overall_ok"] else "❌"
                 st.markdown(f"**{badge} {row['filename']}**")
+
                 title_mark = "✅" if verdict["title_ok"] else "❌"
+                st.markdown(f"{title_mark} **Title** (similarity = {float(row['title_similarity']):.0%})")
+                st.caption(f"True: {row['true_title'][:60]}")
+                st.caption(f"Predicted: {row['pred_title'][:60]}")
+
                 date_mark = "✅" if verdict["date_ok"] else "❌"
-                st.caption(f"{title_mark} title (sim={float(row['title_similarity']):.2f})")
-                st.caption(f"true:  {row['true_title'][:40]}")
-                st.caption(f"pred:  {row['pred_title'][:40]}")
-                st.caption(f"{date_mark} date: true={row['true_date']!r} pred={row['pred_date']!r}")
+                st.markdown(f"{date_mark} **Date**")
+                st.caption(f"True: {row['true_date'] or '(none)'}")
+                st.caption(f"Predicted: {row['pred_date'] or '(none)'}")
+
+                quality = get_image_quality(row["filename"], gt_df)
+                st.markdown(f"**Image Quality:** {quality}")
                 st.divider()
 
         if i == 0:
